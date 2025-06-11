@@ -164,7 +164,6 @@ def jogar():
             engine.runAndWait()
             pygame.time.delay(4000)
             rodando = False
-
         pygame.display.update()
         relogio.tick(60)
 

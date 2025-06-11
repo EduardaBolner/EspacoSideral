@@ -36,3 +36,45 @@ def escreverDados(nome, pontos):
     banco.close()
     
     # END - inserindo no arquivo
+
+import os
+import json
+from datetime import datetime
+
+def inicializarBancoDeDados():
+    if not os.path.exists("recursos"):
+        os.makedirs("recursos")
+    caminho = "recursos/logs.json"
+    if not os.path.exists(caminho):
+        with open(caminho, "w") as f:
+            json.dump([], f)
+
+def escreverDados(nome, pontos):
+    dados = {
+        "nome": nome,
+        "pontos": pontos,
+        "data": datetime.now().strftime("%Y-%m-%d"),
+        "hora": datetime.now().strftime("%H:%M:%S")
+    }
+    caminho = "recursos/logs.json"
+    with open(caminho, "r") as f:
+        conteudo = json.load(f)
+    conteudo.append(dados)
+    with open(caminho, "w") as f:
+        json.dump(conteudo, f, indent=4)
+
+def obterRanking():
+    caminho = "recursos/logs.json"
+    if not os.path.exists(caminho):
+        return []
+    with open(caminho, "r") as f:
+        dados = json.load(f)
+    dados.sort(key=lambda x: x["pontos"], reverse=True)
+    return dados[:5]  # Top 5
+
+def obterHistorico():
+    caminho = "recursos/logs.json"
+    if not os.path.exists(caminho):
+        return []
+    with open(caminho, "r") as f:
+        return json.load(f)

@@ -3,15 +3,23 @@ import random
 import os
 import tkinter as tk
 from tkinter import messagebox
-from recursos.funcoes import inicializarBancoDeDados, escreverDados
+import speech_recognition as sr
+from recursos.funcoes import (
+    inicializarBancoDeDados,
+    escreverDados,
+    obterRanking,
+    obterHistorico
+)
 import json
+from datetime import datetime
 
+# Inicialização do Pygame e banco de dados
 pygame.init()
 inicializarBancoDeDados()
 
-# Tela e configurações iniciais
-tamanho = (1000, 700)
-tela = pygame.display.set_mode(tamanho)
+# Configurações de tela
+TAMANHO = (1000, 700)
+tela = pygame.display.set_mode(TAMANHO)
 relogio = pygame.time.Clock()
 pygame.display.set_caption("Espaço Sideral")
 icone = pygame.image.load("assets/icone.png")
@@ -26,46 +34,60 @@ cinza = (200, 200, 200)
 fonteMenu = pygame.font.SysFont("comicsans", 18)
 fonteMorte = pygame.font.SysFont("arial", 120)
 fonteBV = pygame.font.SysFont("arial", 40)
-fonte_explicacao = pygame.font.SysFont("arial", 20)
-fonte_mensagem = pygame.font.SysFont("arial", 50)  # Adicionada
+fonteExp = pygame.font.SysFont("arial", 20)
+fonteMsg = pygame.font.SysFont("arial", 60)
 
 # Imagens e sons
 iron = pygame.transform.scale(pygame.image.load("assets/iron.png"), (100, 150))
 fundoStart = pygame.transform.scale(pygame.image.load("assets/fundoStart.jpg"), (1000, 700))
 fundoDead = pygame.transform.scale(pygame.image.load("assets/fundoDead.png"), (1000, 700))
 missel = pygame.transform.scale(pygame.image.load("assets/missile.png"), (200, 200))
-lua = pygame.transform.scale(pygame.image.load("assets/lua.png"), (200, 200))
+lua_img = pygame.transform.scale(pygame.image.load("assets/lua.png"), (200, 200))
 missileSound = pygame.mixer.Sound("assets/missile.wav")
 explosaoSound = pygame.mixer.Sound("assets/explosao.wav")
 pygame.mixer.music.load("assets/ironsound.mp3")
 
-# Nome global
-global nome
+# Variável global para nome do jogador
 nome = ""
 
-def desenhar_texto_centralizado(texto, fonte, cor, superficie, y):  # Adicionada
-    texto_renderizado = fonte.render(texto, True, cor)
-    texto_rect = texto_renderizado.get_rect(center=(tamanho[0]//2, y))
-    superficie.blit(texto_renderizado, texto_rect)
+def desenhar_texto_centralizado(texto, fonte, cor, superficie, y):
+    render = fonte.render(texto, True, cor)
+    rect = render.get_rect(center=(TAMANHO[0] // 2, y))
+    superficie.blit(render, rect)
 
+# --- Funções de exibição de ranking e histórico ---
+def mostrar_ranking():
+    ranking = obterRanking()
+    tela.fill(preto)
+    desenhar_texto_centralizado("Top 5 Jogadores", fonteBV, branco, tela, 50)
+    for i, dado in enumerate(ranking):
+        texto = fonteMenu.render(f"{i+1}. {dado['nome']} - {dado['pontos']} pts", True, branco)
+        tela.blit(texto, (350, 120 + i * 40))
+    pygame.display.update()
+    pygame.time.delay(5000)
+
+def mostrar_historico():
+    historico = obterHistorico()
+    tela.fill(preto)
+    desenhar_texto_centralizado("Histórico de Partidas", fonteBV, branco, tela, 50)
+    ultima = historico[-10:]
+    for i, dado in enumerate(ultima):
+        texto = fonteMenu.render(
+            f"{dado['nome']} - {dado['pontos']} pts - {dado['data']} às {dado['hora']}", True, branco)
+        tela.blit(texto, (200, 120 + i * 40))
+    pygame.display.update()
+    pygame.time.delay(7000)
+
+# --- Loop principal de jogo ---
 def jogar():
     global nome
-    posicaoXPersona = 400
-    posicaoYPersona = 300
-    movimentoXPersona = 0
-    posicaoXMissel = 400
-    posicaoYMissel = -240
-    velocidadeMissel = 1
-    larguraPersona = 90
-    alturaPersona = 150
-    larguraMissel = 180
-    alturaMissel = 200
+    x_player, y_player = 400, 300
+    mov_x = 0
+    x_missel, y_missel = 400, -240
+    vel_missel = 1
     pontos = 0
     pausado = False
-
     estrelas = [[random.randint(0, 1000), random.randint(0, 700)] for _ in range(100)]
-
-    # Lua decorativa
     lua_x = random.randint(0, 900)
     lua_y = random.randint(0, 600)
     lua_dx = random.choice([-1, 1]) * random.uniform(0.5, 1.5)
@@ -74,75 +96,112 @@ def jogar():
     pygame.mixer.Sound.play(missileSound)
     pygame.mixer.music.play(-1)
 
-    while True:
-        for evento in pygame.event.get():
-            if evento.type == pygame.QUIT:
+    rodando = True
+    while rodando:
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT:
                 pygame.quit()
                 exit()
-            elif evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_RIGHT:
-                    movimentoXPersona = 15
-                elif evento.key == pygame.K_LEFT:
-                    movimentoXPersona = -15
-                elif evento.key == pygame.K_SPACE:
-                    pausado = not pausado
-            elif evento.type == pygame.KEYUP:
-                if evento.key in [pygame.K_RIGHT, pygame.K_LEFT]:
-                    movimentoXPersona = 0
+            if ev.type == pygame.KEYDOWN:
+                if ev.key == pygame.K_RIGHT: mov_x = 15
+                if ev.key == pygame.K_LEFT: mov_x = -15
+                if ev.key == pygame.K_SPACE: pausado = not pausado
+            if ev.type == pygame.KEYUP:
+                if ev.key in (pygame.K_RIGHT, pygame.K_LEFT): mov_x = 0
 
         if pausado:
-            texto_pause = fonteMenu.render("Jogo Pausado", True, branco)
-            tela.blit(texto_pause, (450, 350))
+            desenhar_texto_centralizado("Jogo Pausado", fonteMenu, branco, tela, 350)
             pygame.display.update()
             relogio.tick(60)
             continue
 
-        posicaoXPersona += movimentoXPersona
-        posicaoXPersona = max(0, min(910, posicaoXPersona))
-
+        x_player = max(0, min(910, x_player + mov_x))
         tela.fill(preto)
-        for estrela in estrelas:
-            estrela[1] += 1
-            if estrela[1] > 700:
-                estrela[1] = 0
-                estrela[0] = random.randint(0, 1000)
-            pygame.draw.circle(tela, branco, estrela, 2)
+        for est in estrelas:
+            est[1] += 1
+            if est[1] > 700:
+                est[1] = 0
+                est[0] = random.randint(0, 1000)
+            pygame.draw.circle(tela, branco, est, 2)
 
-        lua_x += lua_dx
-        lua_y += lua_dy
-        if lua_x <= 0 or lua_x + 100 >= 1000:
-            lua_dx *= -1
-        if lua_y <= 0 or lua_y + 100 >= 700:
-            lua_dy *= -1
+        lua_x += lua_dx; lua_y += lua_dy
+        if lua_x <= 0 or lua_x + 100 >= 1000: lua_dx *= -1
+        if lua_y <= 0 or lua_y + 100 >= 700: lua_dy *= -1
+        tela.blit(lua_img, (int(lua_x), int(lua_y)))
+        tela.blit(iron, (x_player, y_player))
 
-        tela.blit(lua, (int(lua_x), int(lua_y)))
-        tela.blit(iron, (posicaoXPersona, posicaoYPersona))
-
-        posicaoYMissel += velocidadeMissel
-        if posicaoYMissel > 700:
-            posicaoYMissel = -240
-            posicaoXMissel = random.randint(0, 800)
-            velocidadeMissel += 1
+        y_missel += vel_missel
+        if y_missel > 700:
+            y_missel = -240
+            x_missel = random.randint(0, 800)
+            vel_missel += 1
             pontos += 1
             pygame.mixer.Sound.play(missileSound)
 
-        tela.blit(missel, (posicaoXMissel, posicaoYMissel))
-        texto = fonteMenu.render(f"Pontos: {pontos}   Press Space to Pause Game", True, branco)
+        tela.blit(missel, (x_missel, y_missel))
+        texto = fonteMenu.render(f"Pontos: {pontos}   Pressione ESPAÇO para pausar", True, branco)
         tela.blit(texto, (15, 15))
 
-        if (posicaoXPersona < posicaoXMissel + larguraMissel and
-            posicaoXPersona + larguraPersona > posicaoXMissel and
-            posicaoYPersona < posicaoYMissel + alturaMissel and
-            posicaoYPersona + alturaPersona > posicaoYMissel):
+        # Colisão
+        if (x_player < x_missel + 180 and x_player + 90 > x_missel and
+            y_player < y_missel + 200 and y_player + 150 > y_missel):
             escreverDados(nome, pontos)
-            dead(pontos)  # Corrigido aqui
+            pygame.mixer.music.stop()
+            pygame.mixer.Sound.play(explosaoSound)
+            tela.blit(fundoDead, (0, 0))
+            desenhar_texto_centralizado("Sua nave explodiu!", fonteMorte, branco, tela, 250)
+            desenhar_texto_centralizado(f"Pontos: {pontos}", fonteMsg, branco, tela, 350)
+            desenhar_texto_centralizado("Pressione qualquer tecla", fonteMenu, branco, tela, 450)
+            pygame.display.update()
+            pygame.time.delay(4000)
+            rodando = False
 
         pygame.display.update()
         relogio.tick(60)
 
-def tela_bem_vindo(nome):
-    imagem_apresentacao = pygame.transform.scale(pygame.image.load("assets/imagem_apresentacao.jpg"), (1000, 700))
-    estrelas = [[random.randint(0, 1000), random.randint(0, 700)] for _ in range(100)]
+# --- Tela de boas-vindas e seleção por voz ou texto ---
+def solicitar_nome():
+    global nome
+    def digitado():
+        nonlocal entry
+        n = entry.get().strip()
+        if not n:
+            messagebox.showwarning("Aviso", "Digite seu nome!")
+        else:
+            nome = n
+            root.destroy()
+
+    def por_voz():
+        global nome
+        r = sr.Recognizer()
+        with sr.Microphone() as source:
+            messagebox.showinfo("Fale agora", "Diga seu nome após clicar em OK.")
+            try:
+                audio = r.listen(source, timeout=5)
+                nome = r.recognize_google(audio, language='pt-BR').strip()
+                messagebox.showinfo("Nome capturado", f"Olá, {nome}!")
+                root.destroy()
+            except sr.UnknownValueError:
+                messagebox.showerror("Erro", "Não entendi. Tente novamente.")
+            except sr.RequestError:
+                messagebox.showerror("Erro", "Serviço indisponível.")
+
+    root = tk.Tk()
+    root.title("Informe seu nickname")
+    root.geometry("350x150")
+    tk.Label(root, text="Digite seu nome:").pack(pady=5)
+    entry = tk.Entry(root)
+    entry.pack()
+    tk.Button(root, text="Enviar", command=digitado).pack(pady=5)
+    tk.Button(root, text="Falar nome", command=por_voz).pack()
+    root.mainloop()
+    tela_bem_vindo()
+
+# --- Tela de introdução com animação ---
+def tela_bem_vindo():
+    global nome
+    img = pygame.transform.scale(pygame.image.load("assets/imagem_apresentacao.jpg"), TAMANHO)
+    estrelas = [[random.randint(0,1000), random.randint(0,700)] for _ in range(100)]
     linhas = [
         "Em um futuro distante...",
         "A humanidade sonha em alcançar a Lua novamente.",
@@ -152,94 +211,56 @@ def tela_bem_vindo(nome):
         "E chegar o mais longe possível!",
         "Boa sorte, comandante."
     ]
-
     for i, linha in enumerate(linhas):
-        for _ in range(30):
+        for j in range(30):
             tela.fill(preto)
-            for estrela in estrelas:
-                estrela[1] += 1
-                if estrela[1] > 700:
-                    estrela[1] = 0
-                    estrela[0] = random.randint(0, 1000)
-                pygame.draw.circle(tela, branco, estrela, 2)
-            for j in range(i):
-                texto_ant = fonte_explicacao.render(linhas[j], True, branco)
-                tela.blit(texto_ant, (50, 100 + j * 50))
-            texto_parcial = fonte_explicacao.render(linha[:int(len(linha) * (_ / 30))], True, branco)
-            tela.blit(texto_parcial, (50, 100 + i * 50))
+            for est in estrelas:
+                est[1] = (est[1]+1) % 700
+                pygame.draw.circle(tela, branco, est, 2)
+            for k in range(i):
+                tela.blit(fonteExp.render(linhas[k], True, branco), (50,100+k*50))
+            tela.blit(fonteExp.render(linha[:int(len(linha)*j/30)], True, branco), (50,100+i*50))
             pygame.display.update()
             relogio.tick(60)
-
-    botao_rect = pygame.Rect(400, 500, 200, 60)
-    executando = True
-    while executando:
+    botao = pygame.Rect(400,500,200,60)
+    running = True
+    while running:
         tela.fill(branco)
-        tela.blit(imagem_apresentacao, (0, 0))
-        texto_nome = fonteBV.render(f"Bem-vindo ao jogo, {nome}", True, preto)
-        tela.blit(texto_nome, (300, 300))
-        pygame.draw.rect(tela, cinza, botao_rect)
-        texto_botao = fonteBV.render("Iniciar", True, preto)
-        tela.blit(texto_botao, (botao_rect.x + 40, botao_rect.y + 10))
-        for evento in pygame.event.get():
-            if evento.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            elif evento.type == pygame.MOUSEBUTTONDOWN:
-                if botao_rect.collidepoint(evento.pos):
-                    executando = False
+        tela.blit(img, (0,0))
+        desenhar_texto_centralizado(f"Bem-vindo, {nome}", fonteBV, preto, tela, 300)
+        pygame.draw.rect(tela, cinza, botao)
+        desenhar_texto_centralizado("Iniciar", fonteBV, preto, tela, 530)
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT: exit()
+            if ev.type == pygame.MOUSEBUTTONDOWN and botao.collidepoint(ev.pos):
+                running = False
         pygame.display.update()
         relogio.tick(60)
-
     jogar()
 
-def solicitar_nome():
-    def obter_nome():
-        global nome
-        nome = entry_nome.get()
-        if not nome:
-            messagebox.showwarning("Aviso", "Por favor, digite seu nome!")
-        else:
-            root.destroy()
-    root = tk.Tk()
-    root.geometry("300x50")
-    root.title("Informe seu nickname")
-    entry_nome = tk.Entry(root)
-    entry_nome.pack()
-    tk.Button(root, text="Enviar", command=obter_nome).pack()
-    root.mainloop()
-    tela_bem_vindo(nome)
-
-def dead(pontos):
-    pygame.mixer.music.stop()
-    pygame.mixer.Sound.play(explosaoSound)
-    tela.blit(fundoDead, (0, 0))
-    desenhar_texto_centralizado("Sua nave explodiu", fonte_mensagem, branco, tela, tamanho[1]//2 - 50)
-    desenhar_texto_centralizado(f"Pontos: {pontos}", fonte_mensagem, branco, tela, tamanho[1]//2 + 20)
-    pygame.display.update()
-    pygame.time.delay(3000)
-    start()
-
+# --- Menu inicial com botões de voz, ranking e histórico ---
 def start():
-    larguraButtonStart = 150
-    alturaButtonStart = 40
-    larguraButtonQuit = 150
-    alturaButtonQuit = 40
+    largura, altura = 200, 40
     while True:
-        for evento in pygame.event.get():
-            if evento.type == pygame.QUIT:
-                quit()
-            elif evento.type == pygame.MOUSEBUTTONUP:
-                if startButton.collidepoint(evento.pos):
-                    solicitar_nome()
-                if quitButton.collidepoint(evento.pos):
-                    quit()
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT: exit()
+            if ev.type == pygame.MOUSEBUTTONUP:
+                if btn_start.collidepoint(ev.pos): solicitar_nome()
+                if btn_quit.collidepoint(ev.pos): exit()
+                if btn_rank.collidepoint(ev.pos): mostrar_ranking()
+                if btn_hist.collidepoint(ev.pos): mostrar_historico()
         tela.fill(branco)
-        tela.blit(fundoStart, (0, 0))
-        startButton = pygame.draw.rect(tela, branco, (10, 10, larguraButtonStart, alturaButtonStart), border_radius=15)
-        quitButton = pygame.draw.rect(tela, branco, (10, 60, larguraButtonQuit, alturaButtonQuit), border_radius=15)
-        tela.blit(fonteMenu.render("Iniciar Game", True, preto), (25, 12))
-        tela.blit(fonteMenu.render("Sair do Game", True, preto), (25, 62))
+        tela.blit(fundoStart, (0,0))
+        btn_start = pygame.draw.rect(tela, branco, (10,10,largura,altura), border_radius=15)
+        btn_quit  = pygame.draw.rect(tela, branco, (10,60,largura,altura), border_radius=15)
+        btn_rank  = pygame.draw.rect(tela, branco, (10,110,largura,altura), border_radius=15)
+        btn_hist  = pygame.draw.rect(tela, branco, (10,160,largura,altura), border_radius=15)
+        tela.blit(fonteMenu.render("Iniciar Game", True, preto), (30,12))
+        tela.blit(fonteMenu.render("Sair do Game", True, preto), (30,62))
+        tela.blit(fonteMenu.render("Ver Ranking", True, preto), (30,112))
+        tela.blit(fonteMenu.render("Ver Histórico", True, preto), (30,162))
         pygame.display.update()
         relogio.tick(60)
 
-start()
+if __name__ == "__main__":
+    start()

@@ -4,6 +4,7 @@ import os
 import tkinter as tk
 from tkinter import messagebox
 import speech_recognition as sr
+import pyttsx3
 from recursos.funcoes import (
     inicializarBancoDeDados,
     escreverDados,
@@ -13,8 +14,9 @@ from recursos.funcoes import (
 import json
 from datetime import datetime
 
-# Inicialização do Pygame e banco de dados
+# Inicialização do Pygame, TTS e banco de dados
 pygame.init()
+engine = pyttsx3.init()
 inicializarBancoDeDados()
 
 # Configurações de tela
@@ -60,22 +62,28 @@ def mostrar_ranking():
     ranking = obterRanking()
     tela.fill(preto)
     desenhar_texto_centralizado("Top 5 Jogadores", fonteBV, branco, tela, 50)
+    engine.say("Top 5 jogadores")
     for i, dado in enumerate(ranking):
         texto = fonteMenu.render(f"{i+1}. {dado['nome']} - {dado['pontos']} pts", True, branco)
         tela.blit(texto, (350, 120 + i * 40))
+        engine.say(f"{i+1}. {dado['nome']} com {dado['pontos']} pontos")
     pygame.display.update()
+    engine.runAndWait()
     pygame.time.delay(5000)
 
 def mostrar_historico():
     historico = obterHistorico()
     tela.fill(preto)
     desenhar_texto_centralizado("Histórico de Partidas", fonteBV, branco, tela, 50)
+    engine.say("Histórico de partidas")
     ultima = historico[-10:]
-    for i, dado in enumerate(ultima):
+    for dado in ultima:
+        engine.say(f"{dado['nome']} fez {dado['pontos']} pontos em {dado['data']} às {dado['hora']}")
         texto = fonteMenu.render(
             f"{dado['nome']} - {dado['pontos']} pts - {dado['data']} às {dado['hora']}", True, branco)
-        tela.blit(texto, (200, 120 + i * 40))
+        tela.blit(texto, (200, 120 + ultima.index(dado) * 40))
     pygame.display.update()
+    engine.runAndWait()
     pygame.time.delay(7000)
 
 # --- Loop principal de jogo ---
@@ -151,8 +159,9 @@ def jogar():
             tela.blit(fundoDead, (0, 0))
             desenhar_texto_centralizado("Sua nave explodiu!", fonteMorte, branco, tela, 250)
             desenhar_texto_centralizado(f"Pontos: {pontos}", fonteMsg, branco, tela, 350)
-            desenhar_texto_centralizado("Pressione qualquer tecla", fonteMenu, branco, tela, 450)
             pygame.display.update()
+            engine.say(f"Sua nave explodiu. Você fez {pontos} pontos.")
+            engine.runAndWait()
             pygame.time.delay(4000)
             rodando = False
 
@@ -179,7 +188,6 @@ def solicitar_nome():
             try:
                 audio = r.listen(source, timeout=5)
                 nome = r.recognize_google(audio, language='pt-BR').strip()
-                messagebox.showinfo("Nome capturado", f"Olá, {nome}!")
                 root.destroy()
             except sr.UnknownValueError:
                 messagebox.showerror("Erro", "Não entendi. Tente novamente.")
@@ -197,7 +205,7 @@ def solicitar_nome():
     root.mainloop()
     tela_bem_vindo()
 
-# --- Tela de introdução com animação ---
+# --- Tela de introdução com animação e narração ---
 def tela_bem_vindo():
     global nome
     img = pygame.transform.scale(pygame.image.load("assets/imagem_apresentacao.jpg"), TAMANHO)
@@ -209,8 +217,16 @@ def tela_bem_vindo():
         "Cometas perigosos tomaram conta do espaço!",
         "Sua missão é desviar de todos eles...",
         "E chegar o mais longe possível!",
-        "Boa sorte, comandante."
+        f"Boa sorte, comandante {nome}."
     ]
+    
+    # Primeiro: executar toda a narração antes de mostrar a animação
+    engine = pyttsx3.init()
+    for linha in linhas:
+        engine.say(linha)
+    engine.runAndWait()
+    
+    # Depois que a narração terminar, mostrar a animação
     for i, linha in enumerate(linhas):
         for j in range(30):
             tela.fill(preto)
@@ -222,14 +238,25 @@ def tela_bem_vindo():
             tela.blit(fonteExp.render(linha[:int(len(linha)*j/30)], True, branco), (50,100+i*50))
             pygame.display.update()
             relogio.tick(60)
+    
+    # Tela de boas-vindas com botão
     botao = pygame.Rect(400,500,200,60)
     running = True
     while running:
         tela.fill(branco)
         tela.blit(img, (0,0))
-        desenhar_texto_centralizado(f"Bem-vindo, {nome}", fonteBV, preto, tela, 300)
+        
+        # Texto de boas-vindas com o nome do jogador
+        texto_bem_vindo = fonteBV.render(f"Bem-vindo, {nome}!", True, preto)
+        rect_bem_vindo = texto_bem_vindo.get_rect(center=(TAMANHO[0]//2, 300))
+        tela.blit(texto_bem_vindo, rect_bem_vindo)
+        
+        # Botão Iniciar
         pygame.draw.rect(tela, cinza, botao)
-        desenhar_texto_centralizado("Iniciar", fonteBV, preto, tela, 530)
+        texto_iniciar = fonteBV.render("Iniciar", True, preto)
+        rect_iniciar = texto_iniciar.get_rect(center=botao.center)
+        tela.blit(texto_iniciar, rect_iniciar)
+        
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT: exit()
             if ev.type == pygame.MOUSEBUTTONDOWN and botao.collidepoint(ev.pos):

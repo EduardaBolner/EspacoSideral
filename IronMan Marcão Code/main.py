@@ -35,7 +35,7 @@ cinza = (200, 200, 200)
 # Fontes
 fonteMenu = pygame.font.SysFont("comicsans", 18)
 fonteMorte = pygame.font.SysFont("arial", 120)
-fonteBV = pygame.font.SysFont("arial", 40)
+fonteBV = pygame.font.SysFont("arial black", 20)
 fonteExp = pygame.font.SysFont("arial", 20)
 fonteMsg = pygame.font.SysFont("arial", 60)
 
@@ -171,14 +171,16 @@ def jogar():
 # --- Tela de boas-vindas e seleção por voz ou texto ---
 def solicitar_nome():
     global nome
+
     def digitado():
-        nonlocal entry
         n = entry.get().strip()
         if not n:
             messagebox.showwarning("Aviso", "Digite seu nome!")
         else:
             nome = n
+            messagebox.showinfo("Nome recebido", f"Olá, {nome}!")   
             root.destroy()
+            
 
     def por_voz():
         global nome
@@ -203,6 +205,9 @@ def solicitar_nome():
     tk.Button(root, text="Enviar", command=digitado).pack(pady=5)
     tk.Button(root, text="Falar nome", command=por_voz).pack()
     root.mainloop()
+
+    # Certifique-se de que a função de boas-vindas esteja usando o nome corretamente
+    print(f"NOME DIGITADO OU FALADO: {nome}")  # <- Debug opcional
     tela_bem_vindo()
 
 # --- Tela de introdução com animação e narração ---
@@ -219,8 +224,7 @@ def tela_bem_vindo():
         "E chegar o mais longe possível!",
         f"Boa sorte, comandante {nome}."
     ]
-    
-    # Primeiro: executar toda a narração antes de mostrar a animação
+   
     engine = pyttsx3.init()
     for linha in linhas:
         engine.say(linha)
@@ -247,7 +251,7 @@ def tela_bem_vindo():
         tela.blit(img, (0,0))
         
         # Texto de boas-vindas com o nome do jogador
-        texto_bem_vindo = fonteBV.render(f"Bem-vindo, {nome}!", True, preto)
+        texto_bem_vindo = fonteBV.render(f"Bem-vindo, esse jogo pertence a Eduarda Q. F. Bolner de RA 1137825!", True, preto)
         rect_bem_vindo = texto_bem_vindo.get_rect(center=(TAMANHO[0]//2, 300))
         tela.blit(texto_bem_vindo, rect_bem_vindo)
         

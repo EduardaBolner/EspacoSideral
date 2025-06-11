@@ -1,1 +1,26 @@
-[]
+[
+    {
+        "nome": "Eduarda",
+        "pontos": 0,
+        "data": "11/06/2025",
+        "hora": "11:46:51"
+    },
+    {
+        "nome": "Vanessa",
+        "pontos": 7,
+        "data": "11/06/2025",
+        "hora": "11:48:49"
+    },
+    {
+        "nome": "",
+        "pontos": 0,
+        "data": "11/06/2025",
+        "hora": "11:58:32"
+    },
+    {
+        "nome": "Andrieli",
+        "pontos": 3,
+        "data": "11/06/2025",
+        "hora": "12:01:45"
+    }
+]
